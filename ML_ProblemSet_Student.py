@@ -81,13 +81,39 @@ combined_data = pd.concat([zi_t_df, ri_t_df["Excess_Return"]], axis=1)
 X = combined_data[[col for col in combined_data.columns if col.startswith("z_")]]
 y = combined_data["Excess_Return"]
 
+from sklearn.model_selection import GroupShuffleSplit
+def split_by_stock_fraction(df, test_fraction=0.3):
+    test_indices = []
+    train_indices = []
 
-X_train_val, X_test, y_train_val, y_test = train_test_split(
-    X, y, test_size=0.3, random_state=42
-)
+    for stock_id in df["Stock_ID"].unique():
+        stock_df = df[df["Stock_ID"] == stock_id]
+        n_test = int(len(stock_df) * test_fraction)
+        test_idx = stock_df.sample(n=n_test, random_state=42).index
+        train_idx = stock_df.index.difference(test_idx)
+
+        test_indices.extend(test_idx)
+        train_indices.extend(train_idx)
+
+    return train_indices, test_indices
+
+
+
+train_idx, test_idx = split_by_stock_fraction(combined_data, test_fraction=0.4)
+
+X_train_val = X.iloc[train_idx].reset_index(drop=True)
+y_train_val = y.iloc[train_idx].reset_index(drop=True)
+meta_train_val = combined_data.loc[train_idx, ["Stock_ID", "Month"]].reset_index(drop=True)
+
+X_test = X.iloc[test_idx].reset_index(drop=True)
+y_test = y.iloc[test_idx].reset_index(drop=True)
+meta_test = combined_data.loc[test_idx, ["Stock_ID", "Month"]].reset_index(drop=True)
+
+
 X_train, X_val, y_train, y_val = train_test_split(
     X_train_val, y_train_val, test_size=0.2857, random_state=42
 )
+
 # -------------------------------
 # Part 3: Model Training Section
 # -------------------------------
@@ -330,16 +356,35 @@ predictions = {
 
 results_df = pd.DataFrame(predictions)
 results_df["True"] = y_test.reset_index(drop=True)
-
-results_df.to_csv("Predictions.csv", index = False)
-
-
-
+results_df["Stock_ID"] = meta_test["Stock_ID"].values
+results_df["Month"] = meta_test["Month"].values
+results_df.to_csv("Predictions.csv", index=False)
 # -------------------------------
 # Part 5: Full-Sample Time Series Plots - to see the predictions vs. actuals
 # -------------------------------
+def plot_predictions_by_stock(results_df, model_name):
 
+    fig, axs = plt.subplots(5, 2, figsize=(15, 12))
+    fig.suptitle(f"{model_name} Results for Stock Return Prediction", fontsize=16)
+    axs = axs.flatten()
 
+    for stock_id in range(1, 11):
+        df_stock = results_df[results_df["Stock_ID"] == stock_id].sort_values("Month")
+
+        axs[stock_id - 1].plot(df_stock["Month"], df_stock["True"], marker='o', label='Actual', color='blue')
+        axs[stock_id - 1].plot(df_stock["Month"], df_stock[model_name], marker='x', linestyle='--', label='Predicted',
+                               color='red')
+        axs[stock_id - 1].set_title(f"Stock {stock_id}")
+        axs[stock_id - 1].set_xlabel("Month")
+        axs[stock_id - 1].set_ylabel("Excess Return")
+        axs[stock_id - 1].legend()
+
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    plt.show()
+
+for model in results_df:
+    if model not in ["Stock_ID", "Month", "True"]:
+        plot_predictions_by_stock(results_df, model)
 
 # -------------------------------
 # Part 6: Out-of-Sample R² Results Table - to evaluate model performance
