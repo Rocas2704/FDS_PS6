@@ -315,6 +315,23 @@ y_pred_rf = rf_best_model.predict(X_test)
 # Part 4: Prediction Wrappers
 # -------------------------------
 
+predictions = {
+    "OLS": y_pred_ols,
+    "Weighted_Linear_Regression": y_pred_wls,
+    "Huber": y_pred_hb,
+    "ElasticNet": y_pred_en,
+    "PCR": y_pred_pcr,
+    "PLS": y_pred_pls,
+    "Spline_ElasticNet": y_pred_glr,
+    "Neural_Network": y_pred_nn,
+    "Gradient_Boosting": y_pred_brt,
+    "Random_Forest": y_pred_rf
+}
+
+results_df = pd.DataFrame(predictions)
+results_df["True"] = y_test.reset_index(drop=True)
+
+results_df.to_csv("Predictions.csv", index = False)
 
 
 
