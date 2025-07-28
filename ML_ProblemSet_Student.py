@@ -26,7 +26,7 @@ os.makedirs("outputs", exist_ok=True)
 # -------------------------------
 # Part 1: Data Generation
 # -------------------------------
-n_stocks = 100  # Define the number of stocks
+n_stocks = 10  # Define the number of stocks
 n_months = 24  # Define the number of months (time periods)
 n_characteristics = 5  # Define the number of stock-specific characteristics
 n_macro_factors = 3  # Define the number of macroeconomic factors
@@ -55,7 +55,7 @@ ri_t_plus_1 = np.zeros((n_stocks, n_months))
 
 for t in range(n_months):
     for i in range(n_stocks):
-        ri_t_plus_1[i, t] = zi_t[i, t, :].dot(theta) + np.random.normal(0, 0.2)
+        ri_t_plus_1[i, t] = zi_t[i, t, :].dot(theta) + np.random.normal(0, 0.05)
 
 # Flatten zi_t: (n_stocks * n_months, n_features)
 zi_t_flattened = zi_t.reshape(n_stocks * n_months, -1)
@@ -503,51 +503,38 @@ plt.show()
 # -------------------------------
 # Part 8: Variable Importance Calculations & Heatmaps - to understand feature importance ( to see which features are more important)
 # -------------------------------
+
+# --- R² Drop Importance ---
 def compute_r2_importance(model, X_test, y_test):
-    def compute_r2_importance(model, X_test, y_test):
-        """
-        Compute R²-based feature importance by variable omission.
+    """
+    Compute R²-based feature importance by variable omission.
 
-        This method estimates the importance of each input feature by measuring the drop
-        in out-of-sample R² when that feature is zeroed out. For each feature j, the model
-        is evaluated on a modified version of X_test where feature j is replaced with zero,
-        and the reduction in R² is interpreted as the importance of that feature.
+    This method estimates the importance of each input feature by measuring the drop
+    in out-of-sample R² when that feature is zeroed out. For each feature j, the model
+    is evaluated on a modified version of X_test where feature j is replaced with zero,
+    and the reduction in R² is interpreted as the importance of that feature.
 
-        Parameters
-        ----------
-        model : object
-            A trained regression model with a `.predict()` method.
-        X_test : array-like or DataFrame, shape (n_samples, n_features)
-            The test feature matrix.
-        y_test : array-like, shape (n_samples,)
-            The true target values corresponding to `X_test`.
+    Parameters
+    ----------
+    model : object
+        A trained regression model with a `.predict()` method.
+    X_test : array-like or DataFrame, shape (n_samples, n_features)
+        The test feature matrix.
+    y_test : array-like, shape (n_samples,)
+        The true target values corresponding to `X_test`.
 
-        Returns
-        -------
-        list of float
-            A list of R² drops (importances) for each feature. Higher values indicate greater
-            importance. The length of the list equals the number of features in `X_test`.
+    Returns
+    -------
+    list of float
+        A list of R² drops (importances) for each feature. Higher values indicate greater
+        importance. The length of the list equals the number of features in `X_test`.
 
-        Notes
-        -----
-        - This method assumes features are numerically centered around 0 or that setting
-          them to zero has a meaningful "removal" effect.
-        - If features are strongly correlated, this method may overestimate their importance.
-        """
-        r2_full = r2_score(y_test, model.predict(X_test))
-        importances = []
-
-        for j in range(X_test.shape[1]):
-            X_modified = X_test.copy()
-            if isinstance(X_modified, pd.DataFrame):
-                X_modified.iloc[:, j] = 0
-            else:
-                X_modified[:, j] = 0
-            r2_j = r2_score(y_test, model.predict(X_modified))
-            importances.append(r2_full - r2_j)
-
-        return importances
-
+    Notes
+    -----
+    - This method assumes features are numerically centered around 0 or that setting
+      them to zero has a meaningful "removal" effect.
+    - If features are strongly correlated, this method may overestimate their importance.
+    """
     r2_full = r2_score(y_test, model.predict(X_test))
     importances = []
 
@@ -562,40 +549,40 @@ def compute_r2_importance(model, X_test, y_test):
 
     return importances
 
-
+# --- SSD Importance ---
 def compute_ssd_importance(model, X_train, epsilon=1e-5):
     """
-        Compute feature importance using the Sum of Squared Derivatives (SSD) method.
+    Compute feature importance using the Sum of Squared Derivatives (SSD) method.
 
-        This method approximates the partial derivative of the model output with respect
-        to each input feature using finite differences. For each feature j, it perturbs
-        the feature slightly in both directions (±epsilon), computes the gradient at
-        each training sample, squares it, and sums across all samples.
+    This method approximates the partial derivative of the model output with respect
+    to each input feature using finite differences. For each feature j, it perturbs
+    the feature slightly in both directions (±epsilon), computes the gradient at
+    each training sample, squares it, and sums across all samples.
 
-        The result reflects how sensitive the model's predictions are to small changes
-        in each input feature, capturing the local effect of each variable.
+    The result reflects how sensitive the model's predictions are to small changes
+    in each input feature, capturing the local effect of each variable.
 
-        Parameters
-        ----------
-        model : object
-            A trained regression model with a `.predict()` method that accepts
-            2D input arrays.
-        X_train : ndarray, shape (n_samples, n_features)
-            The feature matrix used to estimate sensitivity (usually training data).
-        epsilon : float, optional (default=1e-5)
-            The magnitude of perturbation used to compute numerical gradients.
+    Parameters
+    ----------
+    model : object
+        A trained regression model with a `.predict()` method that accepts
+        2D input arrays.
+    X_train : ndarray, shape (n_samples, n_features)
+        The feature matrix used to estimate sensitivity (usually training data).
+    epsilon : float, optional (default=1e-5)
+        The magnitude of perturbation used to compute numerical gradients.
 
-        Returns
-        -------
-        list of float
-            A list of SSD values (one per feature). Higher values indicate greater
-            local influence on the model’s predictions.
+    Returns
+    -------
+    list of float
+        A list of SSD values (one per feature). Higher values indicate greater
+        local influence on the model’s predictions.
 
-        Notes
-        -----
-        - This method is computationally expensive: O(n_samples × n_features) predictions.
-        - It is most appropriate for differentiable, continuous-output models.
-        """
+    Notes
+    -----
+    - This method is computationally expensive: O(n_samples × n_features) predictions.
+    - It is most appropriate for differentiable, continuous-output models.
+    """
     partial_squares = []
 
     for j in range(X_train.shape[1]):
@@ -616,7 +603,6 @@ def compute_ssd_importance(model, X_train, epsilon=1e-5):
 
     return partial_squares
 
-
 # --- Plot Function ---
 def plot_importance_heatmap(importance_dict, title="Variable Importance", method="R² Drop"):
     df_importance = pd.DataFrame(importance_dict)
@@ -630,7 +616,7 @@ def plot_importance_heatmap(importance_dict, title="Variable Importance", method
     plt.tight_layout()
     plt.show()
 
-
+# --- Importance Calculation ---
 importance_r2 = {}
 importance_ssd = {}
 
@@ -661,175 +647,114 @@ ssd_df_normalized = pd.DataFrame(importance_ssd)
 ssd_df_normalized = ssd_df_normalized.div(ssd_df_normalized.sum(axis=0), axis=1)
 plot_importance_heatmap(ssd_df_normalized.to_dict(), method="SSD (Normalized)")
 
+# Group 2: Spline Models (75 features) with Aggregation
 spline_models = {
     "Spline_ElasticNet": best_spline_model
 }
+
+n_bases_per_feature = X_test_spline.shape[1] // 15  # Assuming 15 original features
+feature_indices = {
+    f"Feature {i + 1}": list(range(i * n_bases_per_feature, (i + 1) * n_bases_per_feature))
+    for i in range(15)
+}
+
+def aggregate_feature_importance(importances, feature_indices):
+    agg = []
+    for indices in feature_indices.values():
+        agg.append(sum([importances[i] for i in indices]))
+    return agg
 
 importance_r2_spline = {}
 importance_ssd_spline = {}
 
 for name, model in spline_models.items():
-    importance_r2_spline[name] = compute_r2_importance(model, X_test_spline, y_test)
-    importance_ssd_spline[name] = compute_ssd_importance(model, X_train_val_spline)
+    raw_r2 = compute_r2_importance(model, X_test_spline, y_test)
+    raw_ssd = compute_ssd_importance(model, X_train_val_spline)
+
+    importance_r2_spline[name] = aggregate_feature_importance(raw_r2, feature_indices)
+    importance_ssd_spline[name] = aggregate_feature_importance(raw_ssd, feature_indices)
 
 plot_importance_heatmap(importance_r2_spline, method="R² Drop (Spline)")
 
 ssd_spline_df = pd.DataFrame(importance_ssd_spline)
-ssd_spline_df = ssd_spline_df.div(ssd_spline_df.sum(axis=0), axis=1)
-plot_importance_heatmap(ssd_spline_df.to_dict(), method="SSD (Spline Normalized)")
+spline_normalized = ssd_spline_df.div(ssd_spline_df.sum(axis=0), axis=1)
+plot_importance_heatmap(spline_normalized.to_dict(), method="SSD (Spline Normalized)")
 
 
 # -------------------------------
 # Part 9: Auxiliary Functions and Decile Portfolio Analysis - to analyze model performance across deciles - to compare predicted vs actual  sharpe ratios
 # -------------------------------
 
-def assign_deciles(df, prediction_column):
-    """
-        Assign decile ranks to predicted values within each month.
 
-        This function groups the data by 'Month' and assigns decile ranks (1 to 10)
-        to the values in `prediction_column`. If there are not enough unique values
-        to create 10 deciles, it attempts to assign fewer (e.g., 9). If ranking fails,
-        it returns NaN for that group.
+# Safe division to avoid divide-by-zero errors
+def safe_div(x, y):
+    return x / y if y != 0 else np.nan
 
-        Parameters
-        ----------
-        df : pandas.DataFrame
-            The DataFrame containing at least the columns "Month" and the prediction column.
-        prediction_column : str
-            The name of the column containing model predictions to be ranked.
+def assign_decile(x):
+    if x.nunique() == 1:
+        return pd.Series(1, index=x.index)
+    else:
+        ranks = x.rank(method='first')
+        n = len(x)
+        deciles = np.ceil((ranks * 10) / n).astype(int)
+        return deciles
 
-        Returns
-        -------
-        pandas.Series
-            A Series of decile labels (1 to 10, or fewer if needed), aligned with `df`.
+models = [col for col in results_df.columns if col not in ["Month", "Stock_ID", "True"]]
+summary = []
 
-        Notes
-        -----
-        - Deciles are computed using `pd.qcut` on the rank-transformed predictions.
-        - Ties are resolved by using the `first` method in `rank()`.
-        - If `x.nunique()` is less than the number of deciles, the function tries with q-1.
-        - Returns NaN if `qcut` fails (e.g., due to all values being equal).
-        """
+for model in models:
+    df_model = results_df[["Month", "True", model]].copy()
+    df_model.columns = ["Month", "Excess_Return", "Pred"]
+    df_model["Decile"] = df_model.groupby("Month")["Pred"].transform(assign_decile)
 
-    def try_qcut(x, q):
-        try:
-            if x.nunique() >= q:
-                return pd.qcut(x.rank(method="first"), q, labels=False, duplicates='drop') + 1
-            else:
-                return pd.qcut(x.rank(method="first"), q - 1, labels=False, duplicates='drop') + 1
-        except Exception:
-            return pd.Series([np.nan] * len(x), index=x.index)
+    monthly_decile = df_model.groupby(["Month", "Decile"], as_index=False).agg({
+        "Pred": "mean",
+        "Excess_Return": "mean"
+    }).rename(columns={"Pred": "Mean_Pred", "Excess_Return": "Mean_Actual"})
 
-    return df.groupby("Month")[prediction_column].transform(lambda x: try_qcut(x, 10))
+    decile_stats = monthly_decile.groupby("Decile").agg({
+        "Mean_Pred": ['mean', 'std'],
+        "Mean_Actual": ['mean', 'std']
+    }).reset_index()
+    decile_stats.columns = ["Decile", "Mean_Pred", "SD_Pred", "Mean_Actual", "SD_Actual"]
 
+    decile_stats["SR_Pred"] = decile_stats.apply(lambda row: safe_div(row["Mean_Pred"], row["SD_Pred"]), axis=1)
+    decile_stats["SR_Actual"] = decile_stats.apply(lambda row: safe_div(row["Mean_Actual"], row["SD_Actual"]), axis=1)
 
-sample_model = "ElasticNet"
+    decile_stats = decile_stats.sort_values(by="Mean_Pred").reset_index(drop=True)
+    decile_stats["New_Decile"] = decile_stats.index + 1
 
-df = results_df.copy()
-df["Decile"] = assign_deciles(df, sample_model)
+    max_decile = decile_stats["New_Decile"].max()
+    min_decile = decile_stats["New_Decile"].min()
 
+    long_short_pred = (
+        decile_stats.loc[decile_stats["New_Decile"] == max_decile, "Mean_Pred"].values[0]
+        - decile_stats.loc[decile_stats["New_Decile"] == min_decile, "Mean_Pred"].values[0]
+    )
+    long_short_actual = (
+        decile_stats.loc[decile_stats["New_Decile"] == max_decile, "Mean_Actual"].values[0]
+        - decile_stats.loc[decile_stats["New_Decile"] == min_decile, "Mean_Actual"].values[0]
+    )
 
-def decile_portfolio_analysis(results_df, model_name):
-    """
-        Perform decile-based portfolio analysis for a given prediction model.
+    ls_SD_pred = np.sqrt(
+        decile_stats.loc[decile_stats["New_Decile"] == max_decile, "SD_Pred"].values[0] ** 2 +
+        decile_stats.loc[decile_stats["New_Decile"] == min_decile, "SD_Pred"].values[0] ** 2
+    )
+    ls_SR_pred = safe_div(long_short_pred, ls_SD_pred)
 
-        This function evaluates the predictive quality of a model by sorting predicted
-        returns into deciles within each month and analyzing the actual realized returns
-        of each decile portfolio.
+    ls_SD_actual = np.sqrt(
+        decile_stats.loc[decile_stats["New_Decile"] == max_decile, "SD_Actual"].values[0] ** 2 +
+        decile_stats.loc[decile_stats["New_Decile"] == min_decile, "SD_Actual"].values[0] ** 2
+    )
+    ls_SR_actual = safe_div(long_short_actual, ls_SD_actual)
 
-        It computes:
-        - The average realized return per decile.
-        - The average standard deviation per decile.
-        - The Sharpe ratio per decile (mean / std).
-        - The long-short return: return of decile 10 minus decile 1.
+    summary.append({
+        "Model": model,
+        "Sharpe_Predicted": ls_SR_pred,
+        "Sharpe_Actual": ls_SR_actual
+    })
 
-        Parameters
-        ----------
-        results_df : pandas.DataFrame
-            A DataFrame containing at least the columns "Month", "True", and the
-            specified `model_name` column with predicted values.
-        model_name : str
-            The name of the column in `results_df` containing predicted values from the model.
+summary_df = pd.DataFrame(summary)
+output_path = "outputs/long_short_sharpe_ratios_all_models_final.csv"
+summary_df.to_csv(output_path, index=False)
 
-        Returns
-        -------
-        portfolio_returns : pandas.Series
-            The mean realized returns for each decile across all months.
-        sharpe_ratios : pandas.Series
-            The Sharpe ratios for each decile portfolio (mean divided by std deviation).
-        long_short : float
-            The return spread between the highest and lowest decile portfolios
-            (i.e., Decile 10 return minus Decile 1 return).
-
-        Notes
-        -----
-        - Requires that `assign_deciles()` has reasonable performance assigning deciles.
-        - If a decile has only one observation in some months, its standard deviation
-          may be NaN, resulting in a NaN Sharpe ratio.
-        - Assumes risk-free rate is 0 for Sharpe ratio calculation.
-        """
-    df = results_df.copy()
-    df["Decile"] = assign_deciles(df, model_name)
-
-    grouped = df.groupby(["Month", "Decile"])["True"].agg(['mean', 'std']).reset_index()
-    grouped.columns = ["Month", "Decile", "Return", "Std"]
-
-    portfolio_returns = grouped.groupby("Decile")["Return"].mean()
-    portfolio_std = grouped.groupby("Decile")["Std"].mean()
-
-    sharpe_ratios = portfolio_returns / portfolio_std.replace(0, np.nan)
-
-    long_short = portfolio_returns.loc[10] - portfolio_returns.loc[1]
-
-    return portfolio_returns, sharpe_ratios, long_short
-
-
-portfolio_table = {}
-sharpe_table = {}
-longshort_table = {}
-valid_models = []
-
-for model in results_df.columns:
-    if model not in ["Stock_ID", "Month", "True"]:
-        try:
-            port_ret, sharpe, longshort = decile_portfolio_analysis(results_df, model)
-
-            if sharpe.notna().sum() >= 1:
-                portfolio_table[model] = port_ret
-                sharpe_table[model] = sharpe
-                longshort_table[model] = longshort
-                valid_models.append(model)
-
-        except Exception as e:
-            print(f"Modelo {model} excluido por error: {e}")
-
-portfolio_df = pd.DataFrame(portfolio_table)
-sharpe_df = pd.DataFrame(sharpe_table)
-longshort_df = pd.Series(longshort_table)
-
-# --- Heatmap only with valid data ---
-if not sharpe_df.empty and sharpe_df.notna().values.any():
-    plt.figure(figsize=(12, 6))
-    sns.heatmap(sharpe_df, annot=True, fmt=".2f", cmap="coolwarm", center=0)
-    plt.title("Sharpe Ratios by Decile and Model")
-    plt.ylabel("Decile")
-    plt.xlabel("Model")
-    plt.tight_layout()
-    plt.show()
-else:
-    print("No valid data")
-
-# --- Long-Short Sharpe Ratios ---
-if not longshort_df.empty and longshort_df.notna().values.any():
-    plt.figure(figsize=(10, 5))
-    longshort_df.sort_values().plot(kind="barh", color="teal")
-    plt.title("Long-Short Portfolio Sharpe Ratios")
-    plt.xlabel("Sharpe Ratio")
-    plt.tight_layout()
-    plt.show()
-else:
-    print(" No valid data")
-
-sharpe_df.to_csv("outputs/Sharpe_Ratios_By_Decile.csv")
-longshort_df.to_csv("outputs/LongShort_Sharpe_Ratios.csv")
